@@ -1,20 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  /// Connexion Google
   Future<UserCredential> signInWithGoogle() async {
     GoogleSignInAccount? googleUser;
 
     if (kIsWeb) {
-      // Web: il faut préciser le clientId
       googleUser = await GoogleSignIn(
-        clientId: "117460258962-k32b7n56d8jnn9t870vvarjftu8qf6rq.apps.googleusercontent.com", // <== ton client ID Web ici
+        clientId: "117460258962-k32b7n56d8jnn9t870vvarjftu8qf6rq.apps.googleusercontent.com",
       ).signIn();
     } else {
-      // Android/iOS
       googleUser = await GoogleSignIn().signIn();
     }
 
@@ -22,14 +22,51 @@ class AuthService {
       throw Exception('Connexion annulée');
     }
 
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-
+    final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
-    return await _auth.signInWithCredential(credential);
+    final userCredential = await _auth.signInWithCredential(credential);
+    await _saveLoginState(true);
+    return userCredential;
+  }
+
+  /// Connexion Email/Password
+  Future<UserCredential> signInWithEmail(String email, String password) async {
+    final userCredential = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    await _saveLoginState(true);
+    return userCredential;
+  }
+
+  /// Inscription Email/Password
+  Future<UserCredential> registerWithEmail(String email, String password) async {
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    await _saveLoginState(true);
+    return userCredential;
+  }
+
+  /// Déconnexion
+  Future<void> signOut() async {
+    await _auth.signOut();
+    await _saveLoginState(false);
+  }
+
+  /// Sauvegarde état connexion (optionnel)
+  Future<void> _saveLoginState(bool isLoggedIn) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', isLoggedIn);
+  }
+
+  /// ✅ VÉRIFICATION CORRECTE DE CONNEXION
+  Future<bool> isLoggedIn() async {
+    return FirebaseAuth.instance.currentUser != null;
   }
 }
